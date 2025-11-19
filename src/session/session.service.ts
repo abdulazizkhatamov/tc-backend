@@ -39,7 +39,15 @@ export class SessionService {
         roles: dbUser.roles,
       };
 
-      return { session: dbUser, message: 'Successfully logged in!' };
+      return {
+        session: {
+          id: dbUser.id,
+          name: dbUser.name,
+          email: dbUser.email,
+          roles: dbUser.roles,
+        },
+        message: 'Successfully logged in!',
+      };
     } catch (error) {
       throw new InternalServerErrorException(error);
     }
