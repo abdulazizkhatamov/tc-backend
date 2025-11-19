@@ -1,0 +1,360 @@
+// Prisma schema file for CRM project
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --------------------- ENUMS ---------------------
+
+// Priority of a lead (low, medium, high)
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// Gender of a student or user
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+// Role of a user in the system
+enum UserRole {
+  ADMIN
+  STAFF
+  INSTRUCTOR
+}
+
+// Status of a student
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  ALUMNI
+}
+
+// Category/type of a course
+enum CourseCategory {
+  TECH
+  LANGUAGE
+  BUSINESS
+  OTHER
+}
+
+// Status of a batch/class
+enum BatchStatus {
+  UPCOMING
+  RUNNING
+  COMPLETED
+  CANCELLED
+}
+
+// Source from which a lead was acquired
+enum LeadSource {
+  WEBSITE
+  WALK_IN
+  FACEBOOK
+  INSTAGRAM
+  GOOGLE
+  REFERRAL
+  OTHER
+}
+
+// Status of a lead in the sales/enrollment pipeline
+enum LeadStatus {
+  NEW
+  CONTACTED
+  FOLLOW_UP
+  TRIAL
+  ENROLLED
+  LOST
+}
+
+// Status of a student's enrollment
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+  REFUNDED
+}
+
+// Payment methods supported
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK
+  ONLINE
+}
+
+// Status of a student's attendance
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+}
+
+// Type of action performed on a lead
+enum LeadActionType {
+  CALL
+  EMAIL
+  MEETING
+  WHATSAPP
+  SMS
+}
+
+// Type of message (email, SMS, WhatsApp)
+enum MessageType {
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+// Status of a message sent
+enum MessageStatus {
+  SENT
+  FAILED
+}
+
+// --------------------- MODELS ---------------------
+
+// Represents a user of the system (Admin, Staff, Instructor)
+model User {
+  id        String     @id @default(cuid()) // Unique ID for the user
+  name      String // Full name
+  email     String     @unique // Unique email for login
+  phone     String? // Optional phone number
+  roles     UserRole[] // Role of user
+  password  String // Hashed password
+  isActive  Boolean    @default(true) // Active status
+  createdAt DateTime   @default(now()) // Creation timestamp
+  updatedAt DateTime   @updatedAt // Last updated timestamp
+
+  // Relations
+  leads             Lead[] // Leads assigned to the user
+  batches           Batch[] // Batches the user is instructing
+  payments          Payment[] // Payments recorded by the user
+  leadNotes         LeadNote[] // Notes authored by the user
+  messageTemplates  MessageTemplate[] // Message templates created by user
+  attendanceRecords AttendanceRecord[] // Attendance records taken by user
+}
+
+// Represents a potential student or lead
+model Lead {
+  id                String         @id @default(cuid()) // Unique lead ID
+  fullName          String // Name of the lead
+  email             String? // Optional email
+  phone             String? // Optional phone
+  source            LeadSource // Where the lead came from
+  status            LeadStatus // Current status in pipeline
+  priority          Priority // Lead priority
+  interestedCourses String[] // Array of course IDs the lead is interested in
+  assignedTo        User           @relation(fields: [userId], references: [id]) // Assigned user
+  userId            String // FK to user
+  students          Student[] // Converted students
+  leadNotes         LeadNote[] // Notes related to lead
+  leadActivities    LeadActivity[] // Activities performed for lead
+  messageLogs       MessageLog[] // Messages sent to this lead
+}
+
+// Represents a note added to a lead
+model LeadNote {
+  id        String   @id @default(cuid()) // Unique note ID
+  lead      Lead     @relation(fields: [leadId], references: [id]) // Associated lead
+  leadId    String // FK to lead
+  author    User     @relation(fields: [authorId], references: [id]) // User who created note
+  authorId  String // FK to author
+  text      String // Note content
+  createdAt DateTime @default(now()) // Timestamp
+}
+
+// Represents an activity performed on a lead (call, email, meeting, etc.)
+model LeadActivity {
+  id          String         @id @default(cuid()) // Unique activity ID
+  lead        Lead           @relation(fields: [leadId], references: [id]) // Associated lead
+  leadId      String // FK to lead
+  actionType  LeadActionType // Type of action
+  description String // Description/details of activity
+  date        DateTime       @default(now()) // When it occurred
+}
+
+// Represents a student
+model Student {
+  id                String              @id @default(cuid()) // Unique student ID
+  fullName          String // Full name
+  email             String? // Optional email
+  phone             String? // Optional phone
+  address           String? // Optional address
+  dateOfBirth       DateTime? // Optional DOB
+  gender            Gender? // Optional gender
+  joinDate          DateTime // Date joined
+  emergencyName     String? // Emergency contact name
+  emergencyPhone    String? // Emergency contact phone
+  status            StudentStatus // Current status
+  lead              Lead?               @relation(fields: [leadId], references: [id]) // Original lead
+  leadId            String? // FK to lead
+  enrollments       Enrollment[] // Enrollments of the student
+  payments          Payment[] // Payments made by student
+  studentAttendance StudentAttendance[] // Attendance records
+  createdAt         DateTime            @default(now()) // Created timestamp
+  updatedAt         DateTime            @updatedAt // Updated timestamp
+  messageLogs       MessageLog[] // Messages sent to student
+}
+
+// Represents a course
+model Course {
+  id            String         @id @default(cuid()) // Unique course ID
+  title         String // Course title
+  description   String? // Optional description
+  durationWeeks Int // Duration in weeks
+  totalHours    Int // Total hours
+  fee           Int // Course fee
+  category      CourseCategory // Category/type
+  syllabus      String[] // Array of topics/lessons
+  isActive      Boolean        @default(true) // Active status
+  createdAt     DateTime       @default(now()) // Created timestamp
+  updatedAt     DateTime       @updatedAt // Updated timestamp
+
+  batches     Batch[] // Batches for this course
+  enrollments Enrollment[] // Enrollments in this course
+}
+
+// Represents a batch or class group
+model Batch {
+  id         String      @id @default(cuid()) // Unique batch ID
+  course     Course      @relation(fields: [courseId], references: [id]) // Parent course
+  courseId   String // FK to course
+  batchName  String // Name of batch (e.g., Morning Batch)
+  instructor User        @relation(fields: [userId], references: [id]) // Assigned instructor
+  userId     String // FK to instructor
+  startDate  DateTime // Batch start date
+  endDate    DateTime // Batch end date
+  daysOfWeek String[] // Array of weekdays (e.g., ["Mon","Wed"])
+  startTime  String // Start time (HH:mm)
+  endTime    String // End time (HH:mm)
+  capacity   Int // Maximum students
+  roomNumber String? // Optional room number
+  status     BatchStatus // Status of batch
+  createdAt  DateTime    @default(now()) // Created timestamp
+  updatedAt  DateTime    @updatedAt // Updated timestamp
+
+  enrollments       Enrollment[] // Enrollments in batch
+  attendanceRecords AttendanceRecord[] // Attendance sessions
+}
+
+// Represents a student's enrollment in a batch/course
+model Enrollment {
+  id               String           @id @default(cuid()) // Unique enrollment ID
+  student          Student          @relation(fields: [studentId], references: [id]) // Student
+  studentId        String // FK to student
+  batch            Batch            @relation(fields: [batchId], references: [id]) // Batch
+  batchId          String // FK to batch
+  course           Course           @relation(fields: [courseId], references: [id]) // Course
+  courseId         String // FK to course
+  enrollmentDate   DateTime         @default(now()) // Date enrolled
+  enrollmentStatus EnrollmentStatus // Status
+  finalFee         Int // Fee after discount
+  discountApplied  Int? // Discount amount
+  notes            String? // Optional notes
+  payments         Payment[] // Payments for this enrollment
+  createdAt        DateTime         @default(now()) // Created timestamp
+  updatedAt        DateTime         @updatedAt // Updated timestamp
+}
+
+// Represents a payment made by a student
+model Payment {
+  id            String        @id @default(cuid()) // Payment ID
+  enrollment    Enrollment    @relation(fields: [enrollmentId], references: [id]) // Related enrollment
+  enrollmentId  String // FK to enrollment
+  student       Student       @relation(fields: [studentId], references: [id]) // Student
+  studentId     String // FK to student
+  amount        Int // Amount paid
+  method        PaymentMethod // Payment method
+  paymentDate   DateTime      @default(now()) // Date of payment
+  transactionId String? // Optional transaction ID
+  receiptNumber String? // Optional receipt number
+  recordedBy    User          @relation(fields: [recordedById], references: [id]) // Staff recording
+  recordedById  String // FK to recorder
+  remarks       String? // Optional notes
+  createdAt     DateTime      @default(now()) // Created timestamp
+  updatedAt     DateTime      @updatedAt // Updated timestamp
+}
+
+// Represents attendance session for a batch
+model AttendanceRecord {
+  id                String              @id @default(cuid()) // Attendance session ID
+  batch             Batch               @relation(fields: [batchId], references: [id]) // Batch
+  batchId           String // FK to batch
+  instructor        User                @relation(fields: [instructorId], references: [id]) // Instructor
+  instructorId      String // FK to instructor
+  sessionDate       DateTime // Date of session
+  topicCovered      String? // Optional topic
+  studentAttendance StudentAttendance[] // Attendance per student
+  createdAt         DateTime            @default(now()) // Created timestamp
+  updatedAt         DateTime            @updatedAt // Updated timestamp
+}
+
+// Represents a student's attendance for a session
+model StudentAttendance {
+  id                 String           @id @default(cuid()) // Attendance record ID
+  attendanceRecord   AttendanceRecord @relation(fields: [attendanceRecordId], references: [id]) // Session
+  attendanceRecordId String // FK to session
+  student            Student          @relation(fields: [studentId], references: [id]) // Student
+  studentId          String // FK to student
+  status             AttendanceStatus // Present/Absent/Late
+  remarks            String? // Optional notes
+  createdAt          DateTime         @default(now()) // Created timestamp
+  updatedAt          DateTime         @updatedAt // Updated timestamp
+}
+
+// Message template (email, sms, whatsapp)
+model MessageTemplate {
+  id          String       @id @default(cuid()) // Template ID
+  type        MessageType // Type of message
+  name        String // Template name
+  subject     String? // Optional subject for email
+  body        String // Body content
+  variables   String[] // Array of placeholders (e.g., {studentName})
+  createdBy   User         @relation(fields: [createdById], references: [id]) // Creator
+  createdById String
+  createdAt   DateTime     @default(now()) // Timestamp
+  messageLogs MessageLog[] // Logs sent using this template
+}
+
+// Represents a sent message
+model MessageLog {
+  id               String           @id @default(cuid()) // Log ID
+  recipientStudent Student?         @relation(fields: [studentId], references: [id]) // Recipient student
+  studentId        String?
+  recipientLead    Lead?            @relation(fields: [leadId], references: [id]) // Recipient lead
+  leadId           String?
+  template         MessageTemplate? @relation(fields: [templateId], references: [id]) // Template used
+  templateId       String?
+  messageBody      String // Actual message sent
+  contactType      MessageType // Type of message
+  status           MessageStatus // Sent or failed
+  sentAt           DateTime // When sent
+  createdAt        DateTime         @default(now()) // Timestamp
+}
+
+// Global CRM settings
+model Settings {
+  id              String   @id @default(cuid()) // Settings ID
+  instituteName   String // Name of institute
+  address         String // Physical address
+  email           String // Contact email
+  phone           String // Contact phone
+  timezone        String // Default timezone
+  logoUrl         String? // Optional logo URL
+  defaultCurrency String // Default currency
+  createdAt       DateTime @default(now()) // Created timestamp
+  updatedAt       DateTime @updatedAt // Updated timestamp
+}
