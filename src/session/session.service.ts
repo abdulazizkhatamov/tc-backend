@@ -26,7 +26,9 @@ export class SessionService {
     try {
       const { email, password } = loginSessionDto;
 
-      const dbUser = await this.prisma.user.findUnique({ where: { email } });
+      const dbUser = await this.prisma.client.user.findUnique({
+        where: { email },
+      });
       if (!dbUser) throw new NotFoundException('User is not found');
 
       const isValid = await argon2.verify(dbUser.password, password);

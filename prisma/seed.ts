@@ -1,10 +1,13 @@
+import { PrismaPg } from '@prisma/adapter-pg';
 import * as argon2 from 'argon2';
 import * as dotenv from 'dotenv';
 import { PrismaClient, UserRole } from 'generated/prisma/client';
 
 dotenv.config();
 
-const prisma = new PrismaClient();
+const connectionString = `${process.env.DATABASE_URL}`;
+const adapter = new PrismaPg({ connectionString });
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   const email = process.env.SUPER_USER_EMAIL as string;
